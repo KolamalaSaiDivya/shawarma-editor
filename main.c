@@ -39,6 +39,8 @@ struct editorConfig {
 
     int rowoff;
     int coloff;
+
+    char statusmsg[80];
 };
 
 struct editorConfig E;
@@ -346,6 +348,65 @@ void editorDrawRows() {
     }
 }
 
+void editorDrawStatusBar() {
+
+    write(STDOUT_FILENO, "\x1b[7m", 4);
+
+    char status[80];
+    char rstatus[80];
+
+    int len = snprintf(status,
+                       sizeof(status),
+                       "%.20s - %d lines",
+                       E.filename ? E.filename : "[No Name]",
+                       E.numrows);
+
+    int rlen = snprintf(rstatus,
+                        sizeof(rstatus),
+                        "%d/%d",
+                        E.cy + 1,
+                        E.numrows);
+
+    if (len > E.screencols) {
+        len = E.screencols;
+    }
+
+    write(STDOUT_FILENO, status, len);
+
+    while (len < E.screencols) {
+
+        if (E.screencols - len == rlen) {
+
+            write(STDOUT_FILENO, rstatus, rlen);
+
+            break;
+
+        } else {
+
+            write(STDOUT_FILENO, " ", 1);
+
+            len++;
+        }
+    }
+
+    write(STDOUT_FILENO, "\x1b[m", 3);
+
+    write(STDOUT_FILENO, "\r\n", 2);
+}
+
+void editorDrawMessageBar() {
+
+    write(STDOUT_FILENO, "\x1b[K", 3);
+
+    int msglen = strlen(E.statusmsg);
+
+    if (msglen > E.screencols) {
+        msglen = E.screencols;
+    }
+
+    write(STDOUT_FILENO, E.statusmsg, msglen);
+}
+
 void editorRefreshScreen() {
 
     editorScroll();
@@ -355,6 +416,9 @@ void editorRefreshScreen() {
     write(STDOUT_FILENO, "\x1b[H", 3);
 
     editorDrawRows();
+
+    editorDrawStatusBar();
+    editorDrawMessageBar();
 
     char buf[32];
 
@@ -409,7 +473,7 @@ int main(int argc, char *argv[]) {
     E.cx = 0;
     E.cy = 0;
 
-    E.screenrows = 24;
+    E.screenrows = 22;
     E.screencols = 80;
 
     E.numrows = 0;
@@ -417,6 +481,8 @@ int main(int argc, char *argv[]) {
      
     E.rowoff = 0;
     E.coloff = 0;
+    
+    strcpy(E.statusmsg, "HELP: Ctrl-S = save | Ctrl-Q = quit");
 
     E.filename = NULL;
 
