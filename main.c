@@ -20,9 +20,16 @@ enum editorKey {
     ARROW_DOWN
 };
 
+enum editorHighlight {
+    HL_NORMAL = 0,
+    HL_NUMBER,
+    HL_KEYWORD
+};
+
 typedef struct erow {
     int size;
     char *chars;
+    unsigned char *hl;
 } erow;
 
 struct editorConfig {
@@ -44,6 +51,18 @@ struct editorConfig {
 };
 
 struct editorConfig E;
+
+char *C_HL_keywords[] = {
+    "int",
+    "char",
+    "if",
+    "else",
+    "for",
+    "while",
+    "return",
+    "void",
+    NULL
+};
 
 struct termios original_termios;
 
@@ -127,6 +146,46 @@ void editorInsertRow(int at, char *s, size_t len) {
     E.row[at].chars[len] = '\0';
 
     E.numrows++;
+
+    E.row[at].hl = NULL;
+
+    editorUpdateSyntax(&E.row[at]);
+
+}
+
+void editorUpdateSyntax(erow *row) {
+
+    row->hl = realloc(row->hl, row->size);
+
+    memset(row->hl, HL_NORMAL, row->size);
+
+    for (int i = 0; i < row->size; i++) {
+
+        char c = row->chars[i];
+
+        if (c >= '0' && c <= '9') {
+            row->hl[i] = HL_NUMBER;
+        }
+    }
+
+    for (int j = 0; C_HL_keywords[j]; j++) {
+
+        char *keyword = C_HL_keywords[j];
+
+        int klen = strlen(keyword);
+
+        for (int i = 0; i <= row->size - klen; i++) {
+
+            if (!strncmp(&row->chars[i], keyword, klen)) {
+
+                row->hl[i] = HL_KEYWORD;
+
+                for (int k = 1; k < klen; k++) {
+                    row->hl[i + k] = HL_KEYWORD;
+                }
+            }
+        }
+    }
 }
 
 void editorAppendRow(char *s, size_t len) {
@@ -179,6 +238,8 @@ void editorRowInsertChar(erow *row, int at, int c) {
     row->size++;
 
     row->chars[at] = c;
+
+    editorUpdateSyntax(row);
 }
 
 void editorRowDeleteChar(erow *row, int at) {
@@ -191,6 +252,8 @@ void editorRowDeleteChar(erow *row, int at) {
             row->size - at);
 
     row->size--;
+
+    editorUpdateSyntax(row);
 }
 
 void editorInsertChar(int c) {
@@ -316,7 +379,23 @@ void editorScroll() {
     }
 }
 
+int editorSyntaxToColor(int hl) {
+
+    switch (hl) {
+
+        case HL_NUMBER:
+            return 31;
+
+        case HL_KEYWORD:
+            return 32;
+
+        default:
+            return 37;
+    }
+}
+
 void editorDrawRows() {
+
     for (int y = 0; y < E.screenrows; y++) {
 
         int filerow = y + E.rowoff;
@@ -337,9 +416,45 @@ void editorDrawRows() {
                 len = E.screencols;
             }
 
-            write(STDOUT_FILENO,
-                  &E.row[filerow].chars[E.coloff],
-                  len);
+            char *c = &E.row[filerow].chars[E.coloff];
+            unsigned char *hl = &E.row[filerow].hl[E.coloff];
+
+            int current_color = -1;
+
+            for (int j = 0; j < len; j++) {
+
+                if (hl[j] == HL_NORMAL) {
+
+                    if (current_color != -1) {
+                        write(STDOUT_FILENO, "\x1b[39m", 5);
+                        current_color = -1;
+                    }
+
+                    write(STDOUT_FILENO, &c[j], 1);
+
+                } else {
+
+                    int color = editorSyntaxToColor(hl[j]);
+
+                    if (color != current_color) {
+
+                        current_color = color;
+
+                        char buf[16];
+
+                        int clen = snprintf(buf,
+                                            sizeof(buf),
+                                            "\x1b[%dm",
+                                            color);
+
+                        write(STDOUT_FILENO, buf, clen);
+                    }
+
+                    write(STDOUT_FILENO, &c[j], 1);
+                }
+            }
+
+            write(STDOUT_FILENO, "\x1b[39m", 5);
         }
 
         write(STDOUT_FILENO, "\x1b[K", 3);
