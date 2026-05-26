@@ -22,7 +22,16 @@ struct editorConfig {
 
     int screenrows;
     int screencols;
+
+    int numrows;
+    erow *row;
 };
+
+typedef struct erow {
+    int size;
+    char *chars;
+} erow;
+
 
 struct editorConfig E;
 
@@ -100,7 +109,21 @@ int editorReadKey() {
 
 void editorDrawRows() {
     for (int y = 0; y < E.screenrows; y++) {
-        write(STDOUT_FILENO, "~\r\n", 3);
+
+        if (y >= E.numrows) {
+
+            write(STDOUT_FILENO, "~", 1);
+
+        } else {
+
+            write(STDOUT_FILENO,
+                  E.row[y].chars,
+                  E.row[y].size);
+        }
+
+        write(STDOUT_FILENO, "\x1b[K", 3);
+
+        write(STDOUT_FILENO, "\r\n", 2);
     }
 }
 
@@ -146,6 +169,22 @@ void editorMoveCursor(int key) {
     }
 }
 
+void editorAppendRow(char *s, size_t len) {
+    E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
+
+    int at = E.numrows;
+
+    E.row[at].size = len;
+
+    E.row[at].chars = malloc(len + 1);
+
+    memcpy(E.row[at].chars, s, len);
+
+    E.row[at].chars[len] = '\0';
+
+    E.numrows++;
+}
+
 int main() {
     enableRawMode();
 
@@ -154,6 +193,13 @@ int main() {
 
     E.screenrows = 24;
     E.screencols = 80;
+
+    E.numrows = 0;
+    E.row = NULL;
+
+    editorAppendRow("shawarma-editor", 15);
+    editorAppendRow("build your own editor", 23);
+    editorAppendRow("low level systems programming", 29);
 
     while (1) {
         editorRefreshScreen();
