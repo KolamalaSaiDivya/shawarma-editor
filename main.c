@@ -16,7 +16,12 @@ enum editorKey {
     ARROW_LEFT = 1000,
     ARROW_RIGHT,
     ARROW_UP,
-    ARROW_DOWN
+    ARROW_DOWN,
+    DEL_KEY,
+    HOME_KEY,
+    END_KEY,
+    PAGE_UP,
+    PAGE_DOWN
 };
 
 typedef struct erow {
@@ -99,10 +104,16 @@ int editorReadKey() {
     return c;
 }
 
-void editorAppendRow(char *s, size_t len) {
+void editorInsertRow(int at, char *s, size_t len) {
+    if (at < 0 || at > E.numrows) {
+        return;
+    }
+
     E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
 
-    int at = E.numrows;
+    memmove(&E.row[at + 1],
+            &E.row[at],
+            sizeof(erow) * (E.numrows - at));
 
     E.row[at].size = len;
 
@@ -113,6 +124,10 @@ void editorAppendRow(char *s, size_t len) {
     E.row[at].chars[len] = '\0';
 
     E.numrows++;
+}
+
+void editorAppendRow(char *s, size_t len) {
+    editorInsertRow(E.numrows, s, len);
 }
 
 void editorRowInsertChar(erow *row, int at, int c) {
@@ -151,6 +166,30 @@ void editorInsertChar(int c) {
     editorRowInsertChar(&E.row[E.cy], E.cx, c);
 
     E.cx++;
+}
+
+void editorInsertNewline() {
+    if (E.cx == 0) {
+
+        editorInsertRow(E.cy, "", 0);
+
+    } else {
+
+        erow *row = &E.row[E.cy];
+
+        editorInsertRow(E.cy + 1,
+                        &row->chars[E.cx],
+                        row->size - E.cx);
+
+        row = &E.row[E.cy];
+
+        row->size = E.cx;
+
+        row->chars[row->size] = '\0';
+    }
+
+    E.cy++;
+    E.cx = 0;
 }
 
 void editorDeleteChar() {
@@ -229,6 +268,16 @@ void editorMoveCursor(int key) {
             }
             break;
     }
+
+    int rowlen = 0;
+
+    if (E.cy < E.numrows) {
+        rowlen = E.row[E.cy].size;
+    }
+
+    if (E.cx > rowlen) {
+        E.cx = rowlen;
+    }
 }
 
 int main() {
@@ -253,15 +302,19 @@ int main() {
         }
 
         switch (c) {
+            case '\r':
+                editorInsertNewline();
+                break;
+
+            case BACKSPACE:
+                editorDeleteChar();
+                break;
+
             case ARROW_UP:
             case ARROW_DOWN:
             case ARROW_LEFT:
             case ARROW_RIGHT:
                 editorMoveCursor(c);
-                break;
-
-            case BACKSPACE:
-                editorDeleteChar();
                 break;
 
             default:
