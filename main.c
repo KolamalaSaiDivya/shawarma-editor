@@ -3,6 +3,7 @@
 #define _GNU_SOURCE
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,12 +17,7 @@ enum editorKey {
     ARROW_LEFT = 1000,
     ARROW_RIGHT,
     ARROW_UP,
-    ARROW_DOWN,
-    DEL_KEY,
-    HOME_KEY,
-    END_KEY,
-    PAGE_UP,
-    PAGE_DOWN
+    ARROW_DOWN
 };
 
 typedef struct erow {
@@ -38,6 +34,8 @@ struct editorConfig {
 
     int numrows;
     erow *row;
+
+    char *filename;
 };
 
 struct editorConfig E;
@@ -208,6 +206,60 @@ void editorDeleteChar() {
     E.cx--;
 }
 
+char *editorRowsToString(int *buflen) {
+    int totlen = 0;
+
+    for (int j = 0; j < E.numrows; j++) {
+        totlen += E.row[j].size + 1;
+    }
+
+    *buflen = totlen;
+
+    char *buf = malloc(totlen);
+
+    char *p = buf;
+
+    for (int j = 0; j < E.numrows; j++) {
+        memcpy(p, E.row[j].chars, E.row[j].size);
+
+        p += E.row[j].size;
+
+        *p = '\n';
+
+        p++;
+    }
+
+    return buf;
+}
+
+void editorSave() {
+    if (E.filename == NULL) {
+        return;
+    }
+
+    int len;
+
+    char *buf = editorRowsToString(&len);
+
+    int fd = open(E.filename, O_RDWR | O_CREAT, 0644);
+
+    if (fd != -1) {
+
+        if (ftruncate(fd, len) != -1) {
+
+            if (write(fd, buf, len) == len) {
+                close(fd);
+                free(buf);
+                return;
+            }
+        }
+
+        close(fd);
+    }
+
+    free(buf);
+}
+
 void editorDrawRows() {
     for (int y = 0; y < E.screenrows; y++) {
 
@@ -251,9 +303,7 @@ void editorMoveCursor(int key) {
             break;
 
         case ARROW_RIGHT:
-            if (E.cx < E.screencols - 1) {
-                E.cx++;
-            }
+            E.cx++;
             break;
 
         case ARROW_UP:
@@ -263,7 +313,7 @@ void editorMoveCursor(int key) {
             break;
 
         case ARROW_DOWN:
-            if (E.cy < E.screenrows - 1) {
+            if (E.cy < E.numrows) {
                 E.cy++;
             }
             break;
@@ -280,7 +330,7 @@ void editorMoveCursor(int key) {
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     enableRawMode();
 
     E.cx = 0;
@@ -292,6 +342,12 @@ int main() {
     E.numrows = 0;
     E.row = NULL;
 
+    E.filename = NULL;
+
+    if (argc >= 2) {
+        E.filename = argv[1];
+    }
+
     while (1) {
         editorRefreshScreen();
 
@@ -302,6 +358,11 @@ int main() {
         }
 
         switch (c) {
+
+            case CTRL_KEY('s'):
+                editorSave();
+                break;
+
             case '\r':
                 editorInsertNewline();
                 break;
