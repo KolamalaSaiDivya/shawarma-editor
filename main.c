@@ -9,7 +9,10 @@
 #include <termios.h>
 #include <unistd.h>
 
+#define CTRL_KEY(k) ((k) & 0x1f)
+
 enum editorKey {
+    BACKSPACE = 127,
     ARROW_LEFT = 1000,
     ARROW_RIGHT,
     ARROW_UP,
@@ -51,11 +54,8 @@ void enableRawMode() {
     struct termios raw = original_termios;
 
     raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-
     raw.c_oflag &= ~(OPOST);
-
     raw.c_cflag |= (CS8);
-
     raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
 
     raw.c_cc[VMIN] = 0;
@@ -131,6 +131,18 @@ void editorRowInsertChar(erow *row, int at, int c) {
     row->chars[at] = c;
 }
 
+void editorRowDeleteChar(erow *row, int at) {
+    if (at < 0 || at >= row->size) {
+        return;
+    }
+
+    memmove(&row->chars[at],
+            &row->chars[at + 1],
+            row->size - at);
+
+    row->size--;
+}
+
 void editorInsertChar(int c) {
     if (E.cy == E.numrows) {
         editorAppendRow("", 0);
@@ -139,6 +151,22 @@ void editorInsertChar(int c) {
     editorRowInsertChar(&E.row[E.cy], E.cx, c);
 
     E.cx++;
+}
+
+void editorDeleteChar() {
+    if (E.cy == E.numrows) {
+        return;
+    }
+
+    if (E.cx == 0) {
+        return;
+    }
+
+    erow *row = &E.row[E.cy];
+
+    editorRowDeleteChar(row, E.cx - 1);
+
+    E.cx--;
 }
 
 void editorDrawRows() {
@@ -220,7 +248,7 @@ int main() {
 
         int c = editorReadKey();
 
-        if (c == 17) {
+        if (c == CTRL_KEY('q')) {
             break;
         }
 
@@ -230,6 +258,10 @@ int main() {
             case ARROW_LEFT:
             case ARROW_RIGHT:
                 editorMoveCursor(c);
+                break;
+
+            case BACKSPACE:
+                editorDeleteChar();
                 break;
 
             default:
