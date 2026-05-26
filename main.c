@@ -52,17 +52,31 @@ char editorReadKey() {
     return c;
 }
 
+void editorDrawRows() {
+    for (int y = 0; y < 24; y++) {
+        write(STDOUT_FILENO, "~\r\n", 3);
+    }
+}
+
+void editorRefreshScreen() {
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+
+    write(STDOUT_FILENO, "\x1b[H", 3);
+
+    editorDrawRows();
+}
+
 int main() {
     enableRawMode();
 
     while (1) {
+        editorRefreshScreen();
+
         char c = editorReadKey();
 
         if (c == 17) {
             break;
         }
-
-        write(STDOUT_FILENO, &c, 1);
     }
 
     return 0;
