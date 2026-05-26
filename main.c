@@ -16,6 +16,11 @@ enum editorKey {
     ARROW_DOWN
 };
 
+typedef struct erow {
+    int size;
+    char *chars;
+} erow;
+
 struct editorConfig {
     int cx;
     int cy;
@@ -26,12 +31,6 @@ struct editorConfig {
     int numrows;
     erow *row;
 };
-
-typedef struct erow {
-    int size;
-    char *chars;
-} erow;
-
 
 struct editorConfig E;
 
@@ -87,17 +86,10 @@ int editorReadKey() {
 
         if (seq[0] == '[') {
             switch (seq[1]) {
-                case 'A':
-                    return ARROW_UP;
-
-                case 'B':
-                    return ARROW_DOWN;
-
-                case 'C':
-                    return ARROW_RIGHT;
-
-                case 'D':
-                    return ARROW_LEFT;
+                case 'A': return ARROW_UP;
+                case 'B': return ARROW_DOWN;
+                case 'C': return ARROW_RIGHT;
+                case 'D': return ARROW_LEFT;
             }
         }
 
@@ -105,6 +97,48 @@ int editorReadKey() {
     }
 
     return c;
+}
+
+void editorAppendRow(char *s, size_t len) {
+    E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
+
+    int at = E.numrows;
+
+    E.row[at].size = len;
+
+    E.row[at].chars = malloc(len + 1);
+
+    memcpy(E.row[at].chars, s, len);
+
+    E.row[at].chars[len] = '\0';
+
+    E.numrows++;
+}
+
+void editorRowInsertChar(erow *row, int at, int c) {
+    if (at < 0 || at > row->size) {
+        at = row->size;
+    }
+
+    row->chars = realloc(row->chars, row->size + 2);
+
+    memmove(&row->chars[at + 1],
+            &row->chars[at],
+            row->size - at + 1);
+
+    row->size++;
+
+    row->chars[at] = c;
+}
+
+void editorInsertChar(int c) {
+    if (E.cy == E.numrows) {
+        editorAppendRow("", 0);
+    }
+
+    editorRowInsertChar(&E.row[E.cy], E.cx, c);
+
+    E.cx++;
 }
 
 void editorDrawRows() {
@@ -169,22 +203,6 @@ void editorMoveCursor(int key) {
     }
 }
 
-void editorAppendRow(char *s, size_t len) {
-    E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
-
-    int at = E.numrows;
-
-    E.row[at].size = len;
-
-    E.row[at].chars = malloc(len + 1);
-
-    memcpy(E.row[at].chars, s, len);
-
-    E.row[at].chars[len] = '\0';
-
-    E.numrows++;
-}
-
 int main() {
     enableRawMode();
 
@@ -196,10 +214,6 @@ int main() {
 
     E.numrows = 0;
     E.row = NULL;
-
-    editorAppendRow("shawarma-editor", 15);
-    editorAppendRow("build your own editor", 23);
-    editorAppendRow("low level systems programming", 29);
 
     while (1) {
         editorRefreshScreen();
@@ -216,6 +230,10 @@ int main() {
             case ARROW_LEFT:
             case ARROW_RIGHT:
                 editorMoveCursor(c);
+                break;
+
+            default:
+                editorInsertChar(c);
                 break;
         }
     }
