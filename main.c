@@ -128,6 +128,38 @@ void editorAppendRow(char *s, size_t len) {
     editorInsertRow(E.numrows, s, len);
 }
 
+void editorOpen(char *filename) {
+    free(E.filename);
+
+    E.filename = strdup(filename);
+
+    FILE *fp = fopen(filename, "r");
+
+    if (!fp) {
+        return;
+    }
+
+    char *line = NULL;
+    size_t linecap = 0;
+    ssize_t linelen;
+
+    while ((linelen = getline(&line, &linecap, fp)) != -1) {
+
+        while (linelen > 0 &&
+               (line[linelen - 1] == '\n' ||
+                line[linelen - 1] == '\r')) {
+
+            linelen--;
+        }
+
+        editorAppendRow(line, linelen);
+    }
+
+    free(line);
+
+    fclose(fp);
+}
+
 void editorRowInsertChar(erow *row, int at, int c) {
     if (at < 0 || at > row->size) {
         at = row->size;
@@ -345,7 +377,7 @@ int main(int argc, char *argv[]) {
     E.filename = NULL;
 
     if (argc >= 2) {
-        E.filename = argv[1];
+        editorOpen(argv[1]);
     }
 
     while (1) {
