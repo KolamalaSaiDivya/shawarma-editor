@@ -36,6 +36,9 @@ struct editorConfig {
     erow *row;
 
     char *filename;
+
+    int rowoff;
+    int coloff;
 };
 
 struct editorConfig E;
@@ -292,18 +295,49 @@ void editorSave() {
     free(buf);
 }
 
+void editorScroll() {
+
+    if (E.cy < E.rowoff) {
+        E.rowoff = E.cy;
+    }
+
+    if (E.cy >= E.rowoff + E.screenrows) {
+        E.rowoff = E.cy - E.screenrows + 1;
+    }
+
+    if (E.cx < E.coloff) {
+        E.coloff = E.cx;
+    }
+
+    if (E.cx >= E.coloff + E.screencols) {
+        E.coloff = E.cx - E.screencols + 1;
+    }
+}
+
 void editorDrawRows() {
     for (int y = 0; y < E.screenrows; y++) {
 
-        if (y >= E.numrows) {
+        int filerow = y + E.rowoff;
+
+        if (filerow >= E.numrows) {
 
             write(STDOUT_FILENO, "~", 1);
 
         } else {
 
+            int len = E.row[filerow].size - E.coloff;
+
+            if (len < 0) {
+                len = 0;
+            }
+
+            if (len > E.screencols) {
+                len = E.screencols;
+            }
+
             write(STDOUT_FILENO,
-                  E.row[y].chars,
-                  E.row[y].size);
+                  &E.row[filerow].chars[E.coloff],
+                  len);
         }
 
         write(STDOUT_FILENO, "\x1b[K", 3);
@@ -313,6 +347,9 @@ void editorDrawRows() {
 }
 
 void editorRefreshScreen() {
+
+    editorScroll();
+
     write(STDOUT_FILENO, "\x1b[2J", 4);
 
     write(STDOUT_FILENO, "\x1b[H", 3);
@@ -321,7 +358,11 @@ void editorRefreshScreen() {
 
     char buf[32];
 
-    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cy + 1, E.cx + 1);
+    snprintf(buf,
+         sizeof(buf),
+         "\x1b[%d;%dH",
+         (E.cy - E.rowoff) + 1,
+         (E.cx - E.coloff) + 1);
 
     write(STDOUT_FILENO, buf, strlen(buf));
 }
@@ -373,6 +414,9 @@ int main(int argc, char *argv[]) {
 
     E.numrows = 0;
     E.row = NULL;
+     
+    E.rowoff = 0;
+    E.coloff = 0;
 
     E.filename = NULL;
 
