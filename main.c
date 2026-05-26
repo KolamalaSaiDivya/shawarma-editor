@@ -2,7 +2,6 @@
 #define _BSD_SOURCE
 #define _GNU_SOURCE
 
-#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,7 +62,7 @@ int main() {
             break;
         }
 
-        printf("You pressed: %d ('%c')\r\n", c, c);
+        write(STDOUT_FILENO, &c, 1);
     }
 
     return 0;
